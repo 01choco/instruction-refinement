@@ -173,7 +173,7 @@ dependencies:
   - xorg-libxext=1.3.6=hb9d3cd8_0
   - xorg-libxfixes=6.0.1=hb9d3cd8_0
   - xorg-libxrender=0.9.12=hb9d3cd8_0
-  - xz=5.4.6=h5eee18b_1
+  - xz
   - yaml=0.2.5=h7b6447c_0
   - zeromq=4.3.5=h3b0a872_7
   - zipp=3.21.0=pyhd8ed1ab_1
@@ -282,7 +282,7 @@ dependencies:
       - grpcio-status==1.71.0
       - gspread==6.2.1
       - h11==0.14.0
-      - h2==4.2.0
+      - h2
       - hf-transfer==0.1.9
       - hf-xet==1.2.0
       - hpack==4.1.0
@@ -292,7 +292,6 @@ dependencies:
       - httpx==0.28.1
       - huggingface-hub==0.36.0
       - hydra-core==1.3.2
-      - hyper==0.7.0
       - hyperframe==6.1.0
       - idna==3.10
       - imageio==2.37.0
@@ -325,7 +324,7 @@ dependencies:
       - latex2mathml==3.77.0
       - lazy-loader==0.4
       - librosa==0.11.0
-      - llamafactory==0.9.3.dev0
+      - llamafactory==0.9.3
       - llguidance==0.7.30
       - llvmlite==0.43.0
       - lm-format-enforcer==0.11.3
@@ -370,9 +369,8 @@ dependencies:
       - oauthlib==3.2.2
       - omegaconf==2.3.0
       - openai==1.108.1
-      - openai-harmony==0.0.8
       - opencv-python==4.11.0.86
-      - opencv-python-headless==4.12.0.88
+      - opencv-python-headless
       - openpyxl==3.1.5
       - orjson==3.10.13
       - outlines-core==0.2.11
