@@ -1,0 +1,46 @@
+# data source
+data_path: openbmb/ultrafeedback
+exp_num: 1
+
+# hyperparameters 
+seed: 42
+split: 0.1
+gamma : 0.13
+threshold : min
+max_loop : 3
+
+# file paths
+output_path: ./results/sampling-ultrafeedback10.jsonl
+instruction_path: ./results/instruction-ultrafeedback50.jsonl
+inference_path: ./results/inference-ultrafeedback50-error.jsonl
+armorm_path: ./results/armorm-ultrafeedback50.jsonl
+feedback_path: ./results/feedback-50-error/min
+
+# resume
+resume: false
+resume_step : 0
+resume_point : train # train, inference, armorm
+
+# train settings 
+beta: 0.01
+lr: 5e-7
+ratio: 0.5
+save_steps: 100
+epoch: 3
+
+# dpo/simpo config
+type: dpo
+model: llama3-8b 
+
+save_path : saves/${model}/${type}
+yaml_path : examples/train_lora/${model}/${type}
+avail_devices : 0,3
+
+# export
+export : False
+export_yaml_path : examples/merge_lora/${model}/${type}
+model_path : models/${model}/${type}
+
+# gpt config
+gpt_model : gpt-4o
+gpt_max_tokens : 1024
