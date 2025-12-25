@@ -3,15 +3,21 @@
 # (ArmoRM scoring -> refine -> vLLM gen -> loop -> final outputs)
 # =========================
 
+data_path: openbmb/ultrafeedback
+exp_num: 1
+
 # loop / threshold
 seed: 42
+split: 0.5
 gamma: 0.13
 threshold: min     # one of: min | mean | max
 max_loop: 3
 
 # io
-inference_path: ./results/inference-ultrafeedback50-error.jsonl
-feedback_path: ./results/ultra5-module/min
+output_path: ./results/sampling-ultrafeedback50.jsonl
+instruction_path: ./results/instruction-ultrafeedback50.jsonl
+inference_path: ./results/inference-ultrafeedback50-mistral.jsonl
+feedback_path: ./results/ultra50-mistral/min
 
 # OpenAI refine
 gpt_model: gpt-4o
@@ -19,7 +25,7 @@ gpt_max_tokens: 1024
 gpt_worker_count: 16   # ThreadPoolExecutor workers for OpenAI calls
 
 # vLLM generation
-model_id: princeton-nlp/Llama-3-Base-8B-SFT   # or your local path
+model_id: alignment-handbook/zephyr-7b-sft-full  # or your local path
 tp: 1                                        # tensor_parallel_size
 max_input_length: 4096                       # vLLM max_model_len
 max_new_tokens: 512
