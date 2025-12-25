@@ -78,7 +78,7 @@ def main(cfg: DictConfig):
     os.makedirs(cfg.feedback_path, exist_ok=True)
 
     # refine-old 캐시 로드 (원본과 동일 동작)
-    refine_old_path = f"{cfg.feedback_path}/refine-old.jsonl"
+    refine_old_path = f"{cfg.feedback_path}/refine-old-no.jsonl"
     if os.path.exists(refine_old_path):
         try:
             refine_df = pd.read_json(refine_old_path, lines=True, encoding="utf-8")

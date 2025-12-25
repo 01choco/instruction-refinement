@@ -175,9 +175,23 @@ def refine_and_generate(cfg: DictConfig, need_refine: list[dict], loop_cnt: int)
             return p
         print(f"[WARN] truncating prompt {len(ids)} -> {max_ctx}")
         ids = ids[:max_prompt_len]
-        return tokenizer.decode(ids, skip_special_tokens=False)
+        return tokenizer.decode(ids, skip_special_tokens=True)
 
-    prompts = [safe_prompt(p) for p in refined_prompts]
+    SYSTEM_PROMPT = ("")
+
+    def build_chat_prompt(user_text: str) -> str:
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_text},
+        ]
+        # 모델 토크나이저가 chat_template을 갖고 있으면 이게 정석
+        return tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+
+    template_prompts = [safe_prompt(build_chat_prompt(p)) for p in refined_prompts]
 
     sampling_params = SamplingParams(
         temperature=cfg.temperature,
@@ -186,7 +200,7 @@ def refine_and_generate(cfg: DictConfig, need_refine: list[dict], loop_cnt: int)
         n=N_RESPONSES,
         stop_token_ids=[tokenizer.eos_token_id],
     )
-    outputs = llm.generate(prompts, sampling_params=sampling_params, use_tqdm=True)
+    outputs = llm.generate(template_prompts, sampling_params=sampling_params, use_tqdm=True)
 
     new_items = []
     refine_path = f"{cfg.feedback_path}/refine.jsonl"
