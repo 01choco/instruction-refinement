@@ -12,6 +12,18 @@ from vllm import LLM, SamplingParams
 # 원본과 동일
 N_RESPONSES = 2
 
+STOPS = [
+    # user role
+    "\n<|start_header_id|>user<|end_header_id|>",
+    "<|start_header_id|>user<|end_header_id|>\n\n",
+    "\nuser", "User:", "user\n\n", "<|user|>",
+
+    # assistant role
+    "\n<|start_header_id|>assistant<|end_header_id|>",
+    "<|start_header_id|>assistant<|end_header_id|>\n\n",
+    "\nassistant", "Assistant:", "assistant\n\n", "<|assistant|>"
+]
+
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
@@ -198,6 +210,7 @@ def refine_and_generate(cfg: DictConfig, need_refine: list[dict], loop_cnt: int)
         top_p=cfg.top_p,
         max_tokens=max_new,
         n=N_RESPONSES,
+        stop=STOPS,
         stop_token_ids=[tokenizer.eos_token_id],
     )
     outputs = llm.generate(template_prompts, sampling_params=sampling_params, use_tqdm=True)
