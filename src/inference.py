@@ -27,9 +27,15 @@ START = 1
 END = 25706                        
 
 STOPS = [
+    # user role
     "\n<|start_header_id|>user<|end_header_id|>",
     "<|start_header_id|>user<|end_header_id|>\n\n",
-    "\nuser", "User:", "<|user|>", "user\n\n"
+    "\nuser", "User:", "user\n\n", "<|user|>",
+
+    # assistant role
+    "\n<|start_header_id|>assistant<|end_header_id|>",
+    "<|start_header_id|>assistant<|end_header_id|>\n\n",
+    "\nassistant", "Assistant:", "assistant\n\n", "<|assistant|>"
 ]
 
 # =======================================================================
@@ -146,6 +152,7 @@ def main(cfg):
         top_p=cfg.top_p,
         max_tokens=max_new,
         n=N_RESPONSES,
+        stop=STOPS,
         stop_token_ids=[tokenizer.eos_token_id],
     )
     outputs = llm.generate(template_prompts, sampling_params=sampling_params, use_tqdm=True)

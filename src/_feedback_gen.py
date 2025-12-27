@@ -10,6 +10,18 @@ from vllm import LLM, SamplingParams
 _EVAL_LLM = None
 _EVAL_TOK = None
 
+STOPS = [
+    # user role
+    "\n<|start_header_id|>user<|end_header_id|>",
+    "<|start_header_id|>user<|end_header_id|>\n\n",
+    "\nuser", "User:", "user\n\n", "<|user|>",
+
+    # assistant role
+    "\n<|start_header_id|>assistant<|end_header_id|>",
+    "<|start_header_id|>assistant<|end_header_id|>\n\n",
+    "\nassistant", "Assistant:", "assistant\n\n", "<|assistant|>"
+]
+
 
 def init_eval_llm(cfg: DictConfig):
     global _EVAL_LLM, _EVAL_TOK
@@ -108,12 +120,70 @@ Original Instruction:
 
 def eval_generate_batch(cfg: DictConfig, prompts: list[str]) -> list[str]:
     init_eval_llm(cfg)
+
+    model_path = cfg.eval_model_id
+    max_ctx = cfg.eval_max_input_length
+    max_new = cfg.eval_max_tokens
+    max_prompt_len = max_ctx - max_new
+
+    SYSTEM_PROMPT = ("")
+
+    def safe_prompt(p: str) -> str:
+        enc = _EVAL_TOK(p, add_special_tokens=False)
+        ids = enc.input_ids
+        if len(ids) <= max_prompt_len:
+            return p
+        print(f"[WARN] truncating prompt {len(ids)} -> {max_ctx}")
+        ids = ids[:max_prompt_len]
+        return _EVAL_TOK.decode(ids, skip_special_tokens=True)
+    
+    def build_chat_prompt(user_text: str) -> str:
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_text},
+        ]
+        # 모델 토크나이저가 chat_template을 갖고 있으면 이게 정석
+        return _EVAL_TOK.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+    
+    template_prompts = [safe_prompt(build_chat_prompt(p)) for p in prompts]
+
     sp = SamplingParams(
         temperature=cfg.eval_temperature,
         top_p=cfg.eval_top_p,
         max_tokens=cfg.eval_max_tokens,
         n=1,
+        stop=STOPS,
         stop_token_ids=[_EVAL_TOK.eos_token_id],
     )
-    outs = _EVAL_LLM.generate(prompts, sp, use_tqdm=True)
-    return [o.outputs[0].text.strip() for o in outs]()
+    outs = _EVAL_LLM.generate(template_prompts, sp, use_tqdm=True)
+    return [o.outputs[0].text.strip() for o in outs]
+
+@hydra.main(version_base=None, config_path="")
+def main(cfg: DictConfig):
+    loop_cnt = int(os.environ.get("LOOP_CNT", "0"))
+    need_refine_path = f"{cfg.feedback_path}/_tmp_need_refine_{loop_cnt}.jsonl"
+    out_path = f"{cfg.feedback_path}/_tmp_feedback_{loop_cnt}.jsonl"
+
+    dataset = load_jsonl(need_refine_path)
+    original_prompts = [item["instruction"] for item in dataset]
+
+    eval_prompts = build_eval_prompts(original_prompts)
+    feedbacks = eval_generate_batch(cfg, eval_prompts)
+
+    out_items = []
+    for item, feedback in zip(dataset, feedbacks):
+        out_items.append({
+            "instruction": item["instruction"],
+            "feedback": feedback,
+        })
+
+    save_jsonl(out_items, out_path, mode="w")
+    print(f"[LOOP {loop_cnt}] wrote {out_path} (size={len(out_items)})")
+
+
+if __name__ == "__main__":
+    main()
