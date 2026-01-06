@@ -9,7 +9,7 @@ def instruction_data(input_path, output_path):
         for line in infile:
             if line.strip():
                 data = json.loads(line)
-                filtered = {"instruction": data.get("prompt")}
+                filtered = {"instruction": data.get("instruction")}
                 json.dump(filtered, outfile, ensure_ascii=False)
                 outfile.write("\n")
 

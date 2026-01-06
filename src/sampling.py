@@ -16,13 +16,12 @@ def sample_data(cfg, datas):
     cnt = 0
     if len(sampled) > 0:
         with open(cfg.output_path, 'a') as file:
-            for d in sampled:  # 리스트 안 모든 원소 처리
+            for d in sampled:
                 json.dump(d, file, ensure_ascii=False)  
                 file.write('\n')
                 cnt += 1
                 print(f"1 data appended. {cnt} / {len(sampled)} Data converted.")
     return len(sampled)
-
 
 import hydra
 

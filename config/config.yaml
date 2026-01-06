@@ -10,19 +10,18 @@ exp_num: 1
 
 # loop / threshold
 seed: 42
-split: 0.5
-gamma: 0.05
+split: 0.5 # for sampling
+tau: 0.05 # 
 threshold: min     # one of: min | mean | max
 max_loop: 3
 
 # io
-output_path: ./results/sampling-ultrafeedback10.jsonl
-instruction_path: ./results/instruction-ultrafeedback50.jsonl
-inference_path: ./results/inference-ultrafeedback50.jsonl
-feedback_path: ./results/ultra50-llama-05-re/min
-refined_path: /opt/dlami/nvme/home/hailolab_seohyeong/query-refinement/results/ultra50-llama-05-re/original.jsonl
-sampling : False
-# OpenAI refine
+output_path: ./results/sampling-path.jsonl
+instruction_path: ./results/instruction-path.jsonl
+inference_path: ./results/inference-path.jsonl
+feedback_path: ./results/feedback_path
+
+# OpenAI refine  
 gpt_model: gpt-4o
 gpt_max_tokens: 1024
 gpt_worker_count: 16   # ThreadPoolExecutor workers for OpenAI calls

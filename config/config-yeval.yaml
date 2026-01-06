@@ -1,12 +1,6 @@
-refined_path: /data2/seohyeong/instruction-ref/results/arena10-refined.jsonl
-armorm_path : /data2/seohyeong/instruction-ref/results/arena10-refined-yeval.jsonl
-output_dir: /data2/seohyeong/instruction-ref/results/arena10-refined-yeval.jsonl
+refined_path: ./results/refined-path.jsonl
 
 # refine eval sampling
-sampling: false
+sampling: False
 size: 500
 seed: 42
-
-# inference config
-gpt_model: gpt-4o
-gpt_max_tokens: 1024
