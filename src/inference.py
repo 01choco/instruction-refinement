@@ -27,15 +27,9 @@ START = 1
 END = 25706                        
 
 STOPS = [
-    # user role
     "\n<|start_header_id|>user<|end_header_id|>",
     "<|start_header_id|>user<|end_header_id|>\n\n",
-    "\nuser", "User:", "user\n\n", "<|user|>",
-
-    # assistant role
-    "\n<|start_header_id|>assistant<|end_header_id|>",
-    "<|start_header_id|>assistant<|end_header_id|>\n\n",
-    "\nassistant", "Assistant:", "assistant\n\n", "<|assistant|>"
+    "\nuser", "User:", "<|user|>", "user\n\n"
 ]
 
 # =======================================================================
@@ -131,7 +125,7 @@ def main(cfg):
         ids = ids[:max_prompt_len]
         return tokenizer.decode(ids, skip_special_tokens=False)
 
-    SYSTEM_PROMPT = ("")
+    SYSTEM_PROMPT = ("You are a helpful, concise assistant")
 
     def build_chat_prompt(user_text: str) -> str:
         messages = [
@@ -150,9 +144,11 @@ def main(cfg):
     sampling_params = SamplingParams(
         temperature=cfg.temperature,
         top_p=cfg.top_p,
+        top_k=50,
         max_tokens=max_new,
         n=N_RESPONSES,
         stop=STOPS,
+        repetition_penalty=REPETITION_PENALTY,
         stop_token_ids=[tokenizer.eos_token_id],
     )
     outputs = llm.generate(template_prompts, sampling_params=sampling_params, use_tqdm=True)
