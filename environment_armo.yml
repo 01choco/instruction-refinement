@@ -1,4 +1,4 @@
-name: qref_armo
+name: pref_armo
 channels:
   - pytorch
   - conda-forge

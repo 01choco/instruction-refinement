@@ -1,4 +1,4 @@
-name: qref_gen
+name: pref_gen
 channels:
   - pytorch
   - nvidia

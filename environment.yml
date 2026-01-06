@@ -1,4 +1,4 @@
-name: carto
+name: pref
 channels:
   - pytorch
   - nvidia
