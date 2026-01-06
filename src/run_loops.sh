@@ -3,7 +3,7 @@ CUDA_VISIBLE_DEVICES=0,1 # set your device
 CFG_PATH=../config
 CFG_NAME=config # your config file name 
 
-conda activate qref_gen
+conda activate pref_gen
 python src/inference.py --config-path $CFG_PATH --config-name $CFG_NAME
 conda deactivate 
 
@@ -16,7 +16,7 @@ for i in 0 1 2; do
     export LOOP_CNT=$i
     export INPUT_PATH=$INPUT_PATH
 
-    conda activate qref_armo
+    conda activate pref_armo
     python -u src/feedback_armo.py --config-path $CFG_PATH --config-name $CFG_NAME
     conda deactivate
 
@@ -27,7 +27,7 @@ PY
 )
     CNT=$(cat ./results/feedback-path/_tmp_cnt_${i}.txt)
 
-    conda activate qref_gen
+    conda activate pref_gen
     python -u src/feedback_gen.py --config-path $CFG_PATH --config-name $CFG_NAME
     conda deactivate
 
@@ -43,6 +43,6 @@ done
 export LOOP_DONE=$LOOP_DONE
 export FINAL_DATASET_PATH=$INPUT_PATH
 
-conda activate qref_gen
+conda activate pref_gen
 python -u src/file_generation.py --config-path $CFG_PATH --config-name $CFG_NAME
 conda deactivate
