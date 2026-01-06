@@ -230,4 +230,3 @@ dependencies:
       - xgrammar==0.1.25
       - xxhash==3.6.0
       - yarl==1.22.0
-prefix: /data/seohyeong/.conda/envs/qref_gen

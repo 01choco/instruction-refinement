@@ -147,4 +147,3 @@ dependencies:
       - urllib3==2.6.2
       - xxhash==3.6.0
       - yarl==1.22.0
-prefix: /data/seohyeong/.conda/envs/qref_armo
