@@ -59,32 +59,29 @@ def get_armo(cfg, dataset):
     rm = ArmoRMPipeline("RLHFlow/ArmoRM-Llama3-8B-v0.1", trust_remote_code=True)
     print(f"Processing {len(dataset)} items...")
 
-    avg_similarity_scores = 0
-    avg_refined_similarity_scores = 0
+    avg_scores = 0
 
     for item in tqdm(dataset, desc="Processing dataset"):
         # set response data
-        similarity_scores = []
+        scores = []
 
         prompt = item["instruction"]
         for j in range(len(item["responses"])):
             generated_response = item["responses"][j]
             score = rm([{"role": "user", "content": prompt}, {"role": "assistant", "content": generated_response}])
-            similarity_scores.append(score)
+            scores.append(score)
 
-        item['similarity_scores'] = similarity_scores
-        item['avg_similarity_score'] = sum(similarity_scores) / len(similarity_scores) if similarity_scores else 0
-        avg_similarity_scores += sum(similarity_scores)
+        item['scores'] = scores
+        item['avg_score'] = sum(scores) / len(scores) if scores else 0
+        avg_scores += sum(scores)
 
         with open(f"{cfg.armorm_path}", 'a', encoding='utf-8') as f:
             json.dump(item, f, ensure_ascii=False)
             f.write('\n')
     
-    avg_similarity_scores /= (len(dataset)*2) if dataset else 1
-    avg_refined_similarity_scores /= (len(dataset)*2) if dataset else 1
+    avg_scores /= (len(dataset)*2) if dataset else 1
 
-    print(f"Average Similarity Score: {avg_similarity_scores}")
-    print(f"Average Refined Similarity Score: {avg_refined_similarity_scores}")
+    print(f"Average Score: {avg_scores}")
 
 @hydra.main(version_base=None, config_path="")
 def main(cfg: DictConfig):

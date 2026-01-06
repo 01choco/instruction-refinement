@@ -1,19 +1,16 @@
+import os
 import json
 import re
-from typing import Dict
-from datasets import load_dataset
-from omegaconf import DictConfig
+import copy
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional, Dict, Any, Tuple, List
+
 import hydra
+from omegaconf import DictConfig, OmegaConf
 from openai import OpenAI
-import os
-import csv
 from tqdm import tqdm
 
-# OpenAI API 키 설정
-api_key = os.getenv('OPENAI_API_KEY')
-client = OpenAI(api_key=api_key)
 
-# 상단 공용 영역
 CRITERIA = [
     "Clarity", "Specificity", "Completeness",
     "Safety", "Answerability", "Conciseness",
@@ -24,91 +21,62 @@ EVAL_LINE_RE = re.compile(
     r"^\*\s*(?P<criterion>Clarity|Specificity|Completeness|Safety|Answerability|Conciseness|FormatConsistency)\s*:\s*(?P<score>[1-5])\/5\s*-\s*(?P<note>.+)$"
 )
 
+
 def is_valid_evaluation_block(text: str) -> bool:
-    """
-    출력이 정확히 요구 형식인지 검사:
-    - 'Evaluation:'으로 시작
-    - 7개 라인 모두 존재, 각 라인이 정규식에 정확히 매칭
-    """
     if not text:
         return False
     lines = [ln.strip() for ln in text.strip().splitlines()]
-    # 'Evaluation:' 단독 라인 찾기
     try:
         start_idx = lines.index("Evaluation:")
     except ValueError:
         return False
 
-    body = [ln for ln in lines[start_idx+1:] if ln]  # 빈 줄 제거
+    body = [ln for ln in lines[start_idx + 1:] if ln]
     matched = []
     for ln in body:
         m = EVAL_LINE_RE.match(ln)
         if m:
             matched.append(m.group("criterion"))
 
-    # 정확히 7개 기준이 모두 나와야 함
     return sorted(set(matched)) == sorted(CRITERIA) and len(matched) == 7
 
-def parse_evaluation_to_json(evaluation_text: str) -> dict:
-    """
-    Args:
-        evaluation_text: "Evaluation:"
 
-    Returns:
-        A dictionary containing the parsed evaluation data.
-        Returns an empty dictionary if the input is invalid.
-    """
+def parse_evaluation_to_json(evaluation_text: str) -> Optional[dict]:
     if not is_valid_evaluation_block(evaluation_text):
         return None
-    
+
     parsed_data = {}
-    # 패턴: * <Criterion>: <score>/5 - <note>
     pattern = re.compile(r"\*\s*(?P<criterion>\w+):\s*(?P<score>\d)/5\s*-\s*(?P<note>.+)")
 
-    lines = evaluation_text.strip().split('\n')
-
-    # "Evaluation:" 라인 이후부터 파싱 시작
+    lines = evaluation_text.strip().split("\n")
     start_parsing = False
     for line in lines:
         if line.strip() == "Evaluation:":
             start_parsing = True
             continue
-        
         if not start_parsing:
             continue
 
         match = pattern.match(line.strip())
         if match:
             data = match.groupdict()
-            criterion = data['criterion']
-            score = int(data['score'])
-            note = data['note'].strip()
-            
-            parsed_data[criterion] = {
-                "score": score,
-                "note": note
-            }
-            
+            criterion = data["criterion"]
+            score = int(data["score"])
+            note = data["note"].strip()
+            parsed_data[criterion] = {"score": score, "note": note}
+
+    if sorted(parsed_data.keys()) != sorted(CRITERIA):
+        return None
+
     return parsed_data
 
-def generate_response_openai(cfg, prompt):
-    resp = client.responses.create(
-        model=cfg.gpt_model,  # "gpt-5" 등
-        input=[
-            {"role": "system", "content": "The assistant should provide users with accurate, relevant, and up-to-date information, ensuring that the content is positive, interesting, engaging, educational, and helpful."},
-            {"role": "user", "content": prompt}
-        ],
-        max_output_tokens=cfg.gpt_max_tokens,
-    )
-    return resp.output_text
 
-
-def feedback_instruction(cfg, prompt):
-    evaluation_template = f"""You are an evaluator. Given an Original Instruction,
-evaluate the instruction using the criteria below. 
+def build_evaluation_prompt(original_instruction: str) -> str:
+    return f"""You are an evaluator. Given an Original Instruction,
+evaluate the instruction using the criteria below.
 Follow these STRICT rules:
 1. Output must start with exactly 'Evaluation:' on its own line.
-2. You must include ALL 7 criteria in the following order: 
+2. You must include ALL 7 criteria in the following order:
    Clarity, Specificity, Completeness, Safety, Answerability, Conciseness, FormatConsistency.
 3. Each line must follow the format:
    * <Criterion>: <digit 1-5>/5 - <one concise note>
@@ -157,191 +125,144 @@ Evaluation:
 ###
 
 Original Instruction:
-{prompt}
+{original_instruction}
 """
-    feedback = generate_response_openai(cfg, evaluation_template)
 
-    # print(json.dumps(original_json, indent=2, ensure_ascii=False))
-    return feedback
 
-def xeval (cfg, dataset):
-    output_file = cfg.output_file
-    refined_feedback_file = cfg.refined_feedback_file
-    original_feedback_file = cfg.original_feedback_file 
-    csv_file = cfg.csv_output_file
+def generate_response_openai(
+    client: OpenAI,
+    model: str,
+    max_output_tokens: int,
+    prompt: str,
+) -> str:
+    resp = client.responses.create(
+        model=model,
+        input=[
+            {
+                "role": "system",
+                "content": "",
+            },
+            {"role": "user", "content": prompt},
+        ],
+        max_output_tokens=max_output_tokens,
+    )
+    return resp.output_text
 
-    cnt = len(dataset)
 
-    Clarity = 0
-    Specificity = 0
-    Completeness = 0
-    Safety = 0
-    Answerability = 0
-    Conciseness = 0
-    FormatConsistency = 0
+def process_one_record(
+    client: OpenAI,
+    model: str,
+    max_output_tokens: int,
+    max_retries: int,
+    record: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    if "instruction" not in record or not isinstance(record["instruction"], str):
+        return None
 
-    refined_Clarity = 0
-    refined_Specificity = 0
-    refined_Completeness = 0
-    refined_Safety = 0
-    refined_Answerability = 0
-    refined_Conciseness = 0
-    refined_FormatConsistency = 0
+    new_record = copy.deepcopy(record)
+    instruction = record["instruction"]
 
-    avg_win_count = 0
-    win_rate = 0
+    original_json = None
+    feedback_text = None
 
-    for item in tqdm(dataset, desc="Processing dataset"):
-        win_count = 0
+    for _ in range(max_retries):
+        prompt = build_evaluation_prompt(instruction)
+        feedback_text = generate_response_openai(
+            client=client,
+            model=model,
+            max_output_tokens=max_output_tokens,
+            prompt=prompt,
+        )
+        original_json = parse_evaluation_to_json(feedback_text)
+        if original_json is not None:
+            break
 
-        original_eval = item["feedback"]
-        if original_eval == "" or original_eval is None:
-            print("Original evaluation missing. Skipping item.")
-            cnt -= 1
-            continue
-        original_json = parse_evaluation_to_json(original_eval)
+    if original_json is None:
+        return None
 
-        if original_json is None:
-            for i in range(cfg.max_retries):
-                print(f"Retrying original instruction evaluation ({i+1}/{cfg.max_retries})...")
-                original_eval = feedback_instruction(cfg, item["instruction"])
-                original_json = parse_evaluation_to_json(original_eval)
-                if original_json is not None:
-                    break
-        
-        if original_json is None:
-            print("Failed to parse original instruction evaluation after retries. Skipping item.")
-            original_json = {
-            "Clarity": {"score": 0, "note": ""},
-            "Specificity": {"score": 0, "note": ""},
-            "Completeness": {"score": 0, "note": ""},
-            "Safety": {"score": 0, "note": ""},
-            "Answerability": {"score": 0, "note": ""},
-            "Conciseness": {"score": 0, "note": ""},
-            "FormatConsistency": {"score": 0, "note": ""}
-            }
-        else:
-            Clarity += original_json["Clarity"]["score"]
-            Specificity += original_json["Specificity"]["score"]
-            Completeness += original_json["Completeness"]["score"]
-            Safety += original_json["Safety"]["score"]
-            Answerability += original_json["Answerability"]["score"]
-            Conciseness += original_json["Conciseness"]["score"]
-            FormatConsistency += original_json["FormatConsistency"]["score"]
+    new_record["feedback"] = feedback_text
+    new_record["feedback_json"] = original_json
+    new_record["feedback_avg_score"] = (
+        sum(v["score"] for v in original_json.values()) / len(original_json)
+    )
 
-        refined_eval = feedback_instruction(cfg, item["refined_instruction"])
-        refined_json = parse_evaluation_to_json(refined_eval)
-        if refined_json is None:
-            for i in range(cfg.max_retries):
-                print(f"Retrying refined instruction evaluation ({i+1}/{cfg.max_retries})...")
-                refined_eval = feedback_instruction(cfg, item["refined_instruction"])
-                refined_json = parse_evaluation_to_json(refined_eval)
-                if refined_json is not None:
-                    break
-    
-        if refined_json is None:
-            print("Failed to parse refined instruction evaluation after retries. Skipping item.")
-            refined_json = {
-            "Clarity": {"score": 0, "note": ""},
-            "Specificity": {"score": 0, "note": ""},
-            "Completeness": {"score": 0, "note": ""},
-            "Safety": {"score": 0, "note": ""},
-            "Answerability": {"score": 0, "note": ""},
-            "Conciseness": {"score": 0, "note": ""},
-            "FormatConsistency": {"score": 0, "note": ""}
-            }
-        else:
-            refined_Clarity += refined_json["Clarity"]["score"]
-            refined_Specificity += refined_json["Specificity"]["score"]
-            refined_Completeness += refined_json["Completeness"]["score"]
-            refined_Safety += refined_json["Safety"]["score"]
-            refined_Answerability += refined_json["Answerability"]["score"]
-            refined_Conciseness += refined_json["Conciseness"]["score"]
-            refined_FormatConsistency += refined_json["FormatConsistency"]["score"]
+    return new_record
 
-        if not any(value["score"] > 0 for value in original_json.values()) or not any(value["score"] > 0 for value in refined_json.values()):
-            cnt -= 1
-            continue
-        else:
-            for criterion in ["Clarity", "Specificity", "Completeness", "Safety", "Answerability", "Conciseness", "FormatConsistency"]:
-                if refined_json[criterion]["score"] >= original_json[criterion]["score"]:
-                    win_count += 1
 
-            avg_win_count += win_count
+def read_jsonl(path: str) -> List[Dict[str, Any]]:
+    items = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            items.append(json.loads(line))
+    return items
 
-            new_item = item.copy()
 
-            new_item["refined_feedback"] = refined_eval
-            new_item["win_count"] = win_count
-            new_item["is_refined_better"] = win_count >= 4  # 7개 기준 중 4개 이상이 향상되면 True
-            if new_item["is_refined_better"]:
-                win_rate += 1
+def write_jsonl(path: str, items: List[Dict[str, Any]]) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        for obj in items:
+            f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
-            with open(output_file, "a", encoding="utf-8") as f:
-                json.dump(new_item, f, ensure_ascii=False)
-                f.write('\n')
 
-            with open(refined_feedback_file, "a", encoding="utf-8") as refined_f, open(original_feedback_file, "a", encoding="utf-8") as original_f:
-                json.dump(refined_json, refined_f, ensure_ascii=False)
-                refined_f.write('\n')
-                json.dump(original_json, original_f, ensure_ascii=False)
-                original_f.write('\n')
+def validate_cfg(cfg: DictConfig) -> None:
+    if not getattr(cfg, "input_path", None):
+        raise ValueError("cfg.input_path is required")
+    if not getattr(cfg, "output_path", None):
+        raise ValueError("cfg.output_path is required")
 
-    avg_win_count /= cnt if dataset else 1
-    win_rate /= cnt if dataset else 1
-
-    original_scores = {
-        "Clarity": Clarity / cnt if dataset else 0,
-        "Specificity": Specificity / cnt if dataset else 0,
-        "Completeness": Completeness / cnt if dataset else 0,
-        "Safety": Safety / cnt if dataset else 0,
-        "Answerability": Answerability / cnt if dataset else 0,
-        "Conciseness": Conciseness / cnt if dataset else 0,
-        "FormatConsistency": FormatConsistency / cnt if dataset else 0,
-    }
-
-    refined_scores = {
-        "Clarity": refined_Clarity / cnt if dataset else 0,
-        "Specificity": refined_Specificity / cnt if dataset else 0,
-        "Completeness": refined_Completeness / cnt if dataset else 0,
-        "Safety": refined_Safety / cnt if dataset else 0,
-        "Answerability": refined_Answerability / cnt if dataset else 0,
-        "Conciseness": refined_Conciseness / cnt if dataset else 0,
-        "FormatConsistency": refined_FormatConsistency / cnt if dataset else 0,
-    }
-
-    print(f"Average win count: {avg_win_count}")
-    print(f"Win rate: {win_rate}")
-
-    print("Original Instructions Average Scores:")
-    for criterion, score in original_scores.items():
-        print(f"{criterion}: {score}")
-
-    print("Refined Instructions Average Scores:")
-    for criterion, score in refined_scores.items():
-        print(f"{criterion}: {score}")
-
-    # Save results to csv
-    with open(csv_file, mode="a", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Metric", "Original Average", "Refined Average"])
-        for criterion in original_scores.keys():
-            writer.writerow([criterion, original_scores[criterion], refined_scores[criterion]])
-        writer.writerow(["Average Win Count", avg_win_count, ""])
-        writer.writerow(["Win Rate", win_rate, ""])
-    print(f"Results saved to {csv_file}")
 
 @hydra.main(version_base=None, config_path="")
 def main(cfg: DictConfig):
-    print(f"Loaded config name: {cfg}")
+    print(f"Loaded config name: {OmegaConf.to_yaml(cfg).strip()}")
 
-    ds = load_dataset("json", data_files=cfg.refined_path, split="train")
+    validate_cfg(cfg)
 
-    if cfg.sampling and cfg.size > 0:
-        sample_size = cfg.size
-        ds = ds.shuffle(seed=cfg.seed).select(range(sample_size))
-        print(f"Randomly sampled {sample_size} items from the dataset.")
-    xeval(cfg, ds)
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("No OPENAI_API_KEY found in environment variables.")
+
+    client = OpenAI(api_key=api_key)
+
+    dataset = read_jsonl(cfg.input_path)
+    n = len(dataset)
+
+    results_by_idx: List[Optional[Dict[str, Any]]] = [None] * n
+
+    def _worker(idx_record: Tuple[int, Dict[str, Any]]):
+        idx, record = idx_record
+        try:
+            out = process_one_record(
+                client=client,
+                model=str(cfg.model),
+                max_output_tokens=int(cfg.max_output_tokens),
+                max_retries=int(cfg.max_retries),
+                record=record,
+            )
+            if out is None and bool(cfg.keep_failed):
+                failed = copy.deepcopy(record)
+                failed["failure_reason"] = "invalid_instruction_or_feedback_parse_failed"
+                return idx, failed
+            return idx, out
+        except Exception as e:
+            if bool(cfg.keep_failed):
+                failed = copy.deepcopy(record)
+                failed["failure_reason"] = f"exception: {type(e).__name__}: {e}"
+                return idx, failed
+            return idx, None
+
+    with ThreadPoolExecutor(max_workers=int(cfg.workers)) as ex:
+        futures = [ex.submit(_worker, (i, r)) for i, r in enumerate(dataset)]
+        for fut in tqdm(as_completed(futures), total=n, desc="Processing JSONL", dynamic_ncols=True):
+            idx, out = fut.result()
+            results_by_idx[idx] = out
+
+    results = [r for r in results_by_idx if r is not None]
+    write_jsonl(cfg.output_path, results)
+
+    print(f"Done. wrote {len(results)}/{n} lines to: {cfg.output_path}")
+
 
 if __name__ == "__main__":
     main()

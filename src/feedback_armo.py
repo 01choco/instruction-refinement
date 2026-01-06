@@ -10,9 +10,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-# 원본과 동일
 N_RESPONSES = 2
-
 
 class ArmoRMPipeline:
     def __init__(
@@ -71,13 +69,11 @@ def save_jsonl(items: list[dict], path: str):
 
 @hydra.main(version_base=None, config_path="")
 def main(cfg: DictConfig):
-    # 쉘에서 주입 (필수)
-    input_path = os.environ["INPUT_PATH"]  # 첫 loop는 cfg.inference_path 넣으면 됨
+    input_path = os.environ["INPUT_PATH"]
     loop_cnt = int(os.environ.get("LOOP_CNT", "0"))
 
     os.makedirs(cfg.feedback_path, exist_ok=True)
 
-    # refine-old 캐시 로드 (원본과 동일 동작)
     refine_old_path = f"{cfg.feedback_path}/refine-old-no.jsonl"
     if os.path.exists(refine_old_path):
         try:
@@ -88,10 +84,9 @@ def main(cfg: DictConfig):
     else:
         refine_df = pd.DataFrame()
 
-    # RM 초기화 (원본과 동일)
     rm = ArmoRMPipeline(
         "RLHFlow/ArmoRM-Llama3-8B-v0.1",
-        device_map={"": "cuda:0"},  # 여기만 네 armo env 상황에 맞춰 cpu로 바꿔도 되지만
+        device_map={"": "cuda:0"},
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
     )
@@ -105,7 +100,6 @@ def main(cfg: DictConfig):
     uf_path = f"{cfg.feedback_path}/ultrafeedback-{loop_cnt}.jsonl"
     refine_path = f"{cfg.feedback_path}/refine.jsonl"
 
-    # 매 loop마다 ultrafeedback-{i}.jsonl append로 쌓는 원본 동작 유지
     for item in tqdm(ds, desc=f"[LOOP {loop_cnt}] Processing dataset", dynamic_ncols=True):
         item = dict(item)
 
@@ -142,7 +136,6 @@ def main(cfg: DictConfig):
             next_dataset.append(out_obj)
             continue
 
-        # 3) threshold 판단 (원본과 동일)
         below = False
         if cfg.threshold == "max":
             below = max(similarity_scores) < cfg.gamma
@@ -159,7 +152,6 @@ def main(cfg: DictConfig):
                 json.dump(item, f, ensure_ascii=False)
                 f.write("\n")
 
-    # step2가 읽을 중간 산출물
     need_refine_path = f"{cfg.feedback_path}/_tmp_need_refine_{loop_cnt}.jsonl"
     next_base_path = f"{cfg.feedback_path}/_tmp_next_base_{loop_cnt}.jsonl"
     cnt_path = f"{cfg.feedback_path}/_tmp_cnt_{loop_cnt}.txt"

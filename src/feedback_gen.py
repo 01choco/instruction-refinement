@@ -9,19 +9,14 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 
-# 원본과 동일
 N_RESPONSES = 2
+REPETITION_PENALTY = 1.05
 
 STOPS = [
     # user role
     "\n<|start_header_id|>user<|end_header_id|>",
     "<|start_header_id|>user<|end_header_id|>\n\n",
     "\nuser", "User:", "user\n\n", "<|user|>",
-
-    # assistant role
-    "\n<|start_header_id|>assistant<|end_header_id|>",
-    "<|start_header_id|>assistant<|end_header_id|>\n\n",
-    "\nassistant", "Assistant:", "assistant\n\n", "<|assistant|>"
 ]
 
 api_key = os.getenv("OPENAI_API_KEY")
@@ -49,7 +44,7 @@ def generate_response_openai(cfg, prompt: str) -> str:
     resp = client.responses.create(
         model=cfg.gpt_model,
         input=[
-            {"role": "system", "content": "The assistant should provide users with accurate, relevant, and up-to-date information, ensuring that the content is positive, interesting, engaging, educational, and helpful."},
+            {"role": "system", "content": ""},
             {"role": "user", "content": prompt},
         ],
         max_output_tokens=cfg.gpt_max_tokens,
@@ -163,7 +158,6 @@ def refine_and_generate(cfg: DictConfig, need_refine: list[dict], loop_cnt: int)
 
     refined_prompts, feedbacks = generate_feedback_instruction(need_refine, cfg)
 
-    # vLLM init (원본과 동일 필드 사용)
     model_path = cfg.model_id
     max_ctx = cfg.max_input_length
     max_new = cfg.max_new_tokens
@@ -196,7 +190,7 @@ def refine_and_generate(cfg: DictConfig, need_refine: list[dict], loop_cnt: int)
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_text},
         ]
-        # 모델 토크나이저가 chat_template을 갖고 있으면 이게 정석
+
         return tokenizer.apply_chat_template(
             messages,
             tokenize=False,
@@ -204,15 +198,18 @@ def refine_and_generate(cfg: DictConfig, need_refine: list[dict], loop_cnt: int)
         )
 
     template_prompts = [safe_prompt(build_chat_prompt(p)) for p in refined_prompts]
-
+    
     sampling_params = SamplingParams(
         temperature=cfg.temperature,
         top_p=cfg.top_p,
+        top_k=50,
         max_tokens=max_new,
         n=N_RESPONSES,
         stop=STOPS,
+        repetition_penalty=REPETITION_PENALTY,
         stop_token_ids=[tokenizer.eos_token_id],
     )
+
     outputs = llm.generate(template_prompts, sampling_params=sampling_params, use_tqdm=True)
 
     new_items = []
@@ -267,7 +264,6 @@ def main(cfg: DictConfig):
 
     refined_items = refine_and_generate(cfg, need_refine, loop_cnt)
 
-    # 다음 loop dataset = (cache-hit으로 이미 만든 next_base) + (이번 loop에서 새로 refine한 refined_items)
     next_all = next_base + refined_items
     save_jsonl(next_all, next_path, mode="w")
 

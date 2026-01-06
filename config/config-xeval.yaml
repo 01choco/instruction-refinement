@@ -1,0 +1,10 @@
+# required
+input_path: /input-path.jsonl
+output_path: /output-path.jsonl
+
+# OpenAI eval config
+model: gpt-4o
+max_output_tokens: 512
+max_retries: 3 # number of retries for OpenAI API calls
+workers: 16
+keep_failed: false
