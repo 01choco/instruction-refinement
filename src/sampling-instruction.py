@@ -1,7 +1,6 @@
 import json
 import hydra
 from omegaconf import DictConfig
-import sys
 
 def instruction_data(input_path, output_path):
     with open(input_path, 'r', encoding='utf-8') as infile, \

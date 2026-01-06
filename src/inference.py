@@ -1,12 +1,9 @@
 # run_infer_hf_llama3_jsonl.py
 import os
 import json
-import time
-from typing import Dict, Iterable, List, Optional
+from typing import Dict
 
-import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoModelForCausalLM, StoppingCriteria, StoppingCriteriaList
-from itertools import islice
+from transformers import AutoTokenizer
 from tqdm import tqdm
 
 import hydra
@@ -22,9 +19,7 @@ TOP_P = 1.0
 MAX_NEW_TOKENS = 512
 REPETITION_PENALTY = 1.05
 SEEDS_BASE = 42                        # random seed
-USE_FP16_BF16 = True                   # fp16 or bfloat16 if possible
-START = 1                            
-END = 25706                        
+USE_FP16_BF16 = True                   # fp16 or bfloat16 if possible               
 
 STOPS = [
     "\n<|start_header_id|>user<|end_header_id|>",
@@ -71,27 +66,10 @@ def main(cfg):
     INPUT_PATH = cfg.instruction_path
 
     done = load_done_instructions(OUTPUT_PATH)
-
-    # 총 개수 파악은 선택
-    try:
-        total = sum(1 for _ in read_jsonl(INPUT_PATH))
-    except Exception:
-        total = 0
-
-    total1 = START
-    total2 = END
-
-    read_idx = total1
-    saved = 0
-    # it = islice(read_jsonl(INPUT_PATH), read_idx - 1, total2)
     it = read_jsonl(INPUT_PATH)
-    
-    print("start from : ", total1, " to ", total2)
     prompts = []
 
-    for rec in tqdm(it, total=(total2 - total1 + 1), desc="Processing"):
-        if read_idx == total2:
-            break
+    for rec in tqdm(it, total=len(it), desc="Processing"):
         instr = rec.get("instruction")
         if not instr:
             continue
@@ -99,7 +77,6 @@ def main(cfg):
             continue
         prompts.append(instr)
 
-    # vLLM init (원본과 동일 필드 사용)
     model_path = cfg.model_id
     max_ctx = cfg.max_input_length
     max_new = cfg.max_new_tokens
@@ -132,7 +109,6 @@ def main(cfg):
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_text},
         ]
-        # 모델 토크나이저가 chat_template을 갖고 있으면 이게 정석
         return tokenizer.apply_chat_template(
             messages,
             tokenize=False,
@@ -167,8 +143,6 @@ def main(cfg):
         new_items.append(out_obj)
 
         append_jsonl(OUTPUT_PATH, out_obj)
-        saved += 1
-        read_idx += 1
 
     print("done")
 
