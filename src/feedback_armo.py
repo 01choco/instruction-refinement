@@ -103,20 +103,17 @@ def main(cfg: DictConfig):
     for item in tqdm(ds, desc=f"[LOOP {loop_cnt}] Processing dataset", dynamic_ncols=True):
         item = dict(item)
 
-        # responses truncate (원본과 동일)
         if len(item["responses"]) > N_RESPONSES:
             item["responses"] = item["responses"][:N_RESPONSES]
 
         prompt = item["instruction"]
 
-        # 1) score 계산
         similarity_scores = []
         for resp in item["responses"]:
             s = rm([{"role": "user", "content": prompt}, {"role": "assistant", "content": resp}])
             similarity_scores.append(s)
         item["scores"] = similarity_scores
 
-        # 2) refine-old cache-hit 처리 (원본과 동일)
         if not refine_df.empty and "instruction" in refine_df.columns:
             if refine_df["instruction"].isin([item["instruction"]]).any():
                 matched_row = refine_df[refine_df["instruction"] == item["instruction"]].iloc[0]

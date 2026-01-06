@@ -16,14 +16,13 @@ def load_jsonl(path: str) -> list[dict]:
 
 @hydra.main(version_base=None, config_path="")
 def main(cfg: DictConfig):
-    loop_cnt = int(os.environ["LOOP_DONE"])  # 실제로 돈 loop 횟수
-    final_dataset_path = os.environ["FINAL_DATASET_PATH"]  # 마지막 _tmp_next_{k}.jsonl
+    loop_cnt = int(os.environ["LOOP_DONE"])
+    final_dataset_path = os.environ["FINAL_DATASET_PATH"] 
 
     os.makedirs(cfg.feedback_path, exist_ok=True)
 
     dataset = load_jsonl(final_dataset_path)
 
-    # final_left.jsonl
     with open(f"{cfg.feedback_path}/final_left.jsonl", "w", encoding="utf-8") as f:
         for data in dataset:
             json.dump(data, f, ensure_ascii=False)

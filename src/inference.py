@@ -69,7 +69,7 @@ def main(cfg):
     it = read_jsonl(INPUT_PATH)
     prompts = []
 
-    for rec in tqdm(it, total=len(it), desc="Processing"):
+    for rec in tqdm(it, desc="Processing"):
         instr = rec.get("instruction")
         if not instr:
             continue
