@@ -1,6 +1,6 @@
-# Prompt Refinement
+# Instruction Refinement
 
-This repository provides a codebase for running and reproducing Prompt Refinement experiments.  
+This repository provides a codebase for running and reproducing Instruction Refinement experiments.  
 
 ---
 
@@ -20,15 +20,15 @@ Different Conda environments are used depending on loop stage.
 
 ## How to Run
 
-### 1. Sampling Prompts 
-Configurate your dataset, and sampling queries in size you want.
+### 1. Sampling Instructions 
+Configurate your dataset, and sampling instructions in size you want.
 ```
 conda activate pref
 python src/sampling.py --config-name config --config-path ../config
 python src/sampling-instruction --config-name config --config-path ../config
 ```
 
-### 2. Run the Prompt Refinement Loop
+### 2. Run the Instruction Refinement Loop
 Configurate your refinement loop in `/config/` and run your loops.
 Example config file is provided in: `/config/config.yaml`
 
