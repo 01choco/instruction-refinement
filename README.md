@@ -13,8 +13,8 @@ Different Conda environments are used depending on loop stage.
     conda env create -f environment_gen.yml
 
 - environment.yml (pref) : Environment for sampling and finalize your datasets
-- environment_armo.yml (pref_gen): Environment for API call–based Feedback generation
-- environment_gen.yml (pref_armo) : Environment for vllm model response generation 
+- environment_armo.yml (pref_armo): Environment for API call–based Feedback generation
+- environment_gen.yml (pref_gen) : Environment for vllm model response generation 
 
 ---
 
