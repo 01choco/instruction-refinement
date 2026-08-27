@@ -1,6 +1,6 @@
-# Instruction Refinement
+# Instruction-Refinement
 
-This repository provides a codebase for running and reproducing Instruction Refinement experiments.  
+Code for Paper "Instruction Quality Matters: Refining Instructions for Effective Preference Learning"
 
 ---
 
