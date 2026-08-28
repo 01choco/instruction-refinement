@@ -1,7 +1,7 @@
 # Instruction-Refinement
 
-Code for Paper "Instruction Quality Matters: Refining Instructions for Effective Preference Learning"
-
+Code for Paper ["Instruction Quality Matters: Refining Instructions for Effective Preference Learning"
+](https://arxiv.org/pdf/2608.26779)
 ---
 
 ## Environment Setup
